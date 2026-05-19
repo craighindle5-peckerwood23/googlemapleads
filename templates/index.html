@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LA Lead Generator</title>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: 50px auto; }
+        input, button { padding: 10px; font-size: 16px; margin: 5px; }
+        #progress-box { margin-top: 20px; padding: 15px; background: #f0f0f0; display: none; }
+        .progress-bar { width: 100%; background: #ddd; }
+        .progress-fill { height: 20px; background: #4CAF50; width: 0%; text-align: center; color: white; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>🗺️ LA Lead Scraper</h1>
+    <p>Get up to 2,000 business leads from Google Maps.</p>
+    <form id="scrape-form">
+        <input type="text" name="query" placeholder="Search term (e.g., coffee shop)" required value="restaurant">
+        <input type="text" name="location" placeholder="Location" value="Los Angeles, CA">
+        <input type="number" name="count" placeholder="Number of leads (max 2000)" value="200" min="1" max="2000">
+        <button type="submit">Get Leads</button>
+    </form>
+
+    <div id="progress-box">
+        <div class="progress-bar">
+            <div id="progress-fill" class="progress-fill">0%</div>
+        </div>
+        <p id="status-text">Starting...</p>
+        <p id="error-text" class="error"></p>
+        <a id="download-link" style="display:none;" download><button>⬇ Download CSV</button></a>
+    </div>
+
+    <script>
+        const form = document.getElementById('scrape-form');
+        const progressBox = document.getElementById('progress-box');
+        const progressFill = document.getElementById('progress-fill');
+        const statusText = document.getElementById('status-text');
+        const errorText = document.getElementById('error-text');
+        const downloadLink = document.getElementById('download-link');
+
+        let pollInterval;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const resp = await fetch('/start', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+            progressBox.style.display = 'block';
+            errorText.textContent = '';
+            downloadLink.style.display = 'none';
+            pollInterval = setInterval(checkStatus, 1000);
+        });
+
+        async function checkStatus() {
+            const resp = await fetch('/status');
+            const data = await resp.json();
+            if (data.error) {
+                errorText.textContent = 'Error: ' + data.error;
+                clearInterval(pollInterval);
+                return;
+            }
+            if (data.running) {
+                const pct = Math.round((data.progress / data.total) * 100);
+                progressFill.style.width = pct + '%';
+                progressFill.textContent = pct + '%';
+                statusText.textContent = `Fetching details... ${data.progress}/${data.total}`;
+            } else {
+                clearInterval(pollInterval);
+                progressFill.style.width = '100%';
+                progressFill.textContent = 'Done!';
+                statusText.textContent = 'Scraping complete. Click below to download.';
+                if (data.csv_path) {
+                    downloadLink.href = '/download';
+                    downloadLink.style.display = 'inline-block';
+                }
+            }
+        }
+    </script>
+</body>
+</html>
